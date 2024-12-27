@@ -1,4 +1,8 @@
-export const ProfessorIcon = () => {
+interface ProfessorIconProps {
+  className?: string;
+}
+
+export const ProfessorIcon = ({ className }: ProfessorIconProps) => {
   return (
     <svg
       width="48"
@@ -6,7 +10,7 @@ export const ProfessorIcon = () => {
       viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="w-16 h-16"
+      className={className}
     >
       {/* Wild Hair Base */}
       <path
