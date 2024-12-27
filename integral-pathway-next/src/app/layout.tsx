@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Cormorant } from "next/font/google";
 import "./globals.css";
 import { Providers } from './providers';
 
 const inter = Inter({ subsets: ["latin"] });
+const cormorant = Cormorant({ 
+  subsets: ["latin"],
+  variable: '--font-cormorant',
+  weight: ['400', '500', '600', '700'],
+});
 
 export const metadata: Metadata = {
   title: "Profesor Integral - Your Calculus Companion",
@@ -17,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${inter.className} ${cormorant.variable}`}>
         <Providers>
           {children}
         </Providers>
