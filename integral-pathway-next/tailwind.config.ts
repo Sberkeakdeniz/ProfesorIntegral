@@ -75,6 +75,21 @@ const config: Config = {
         DEFAULT: {
           css: {
             maxWidth: 'none',
+            color: 'hsl(var(--foreground))',
+            p: {
+              marginTop: '1em',
+              marginBottom: '1em',
+            },
+            '.katex': {
+              fontSize: '1.1em',
+              fontWeight: '400',
+            },
+            '.katex-display': {
+              margin: '1em 0',
+              padding: '0.5em 0',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+            },
             code: {
               backgroundColor: 'hsl(var(--secondary))',
               padding: '0.25rem',

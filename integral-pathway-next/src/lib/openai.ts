@@ -1,7 +1,5 @@
 import OpenAI from 'openai';
-import { MathProblemResponse } from '@/types/math';
 
-// Initialize OpenAI client
 export const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
@@ -102,8 +100,6 @@ $4(2) = 8$
 Therefore:
 $F(2) = \\frac{16}{3} - 6 + 8 = \\frac{16}{3} - \\frac{18}{3} + \\frac{24}{3} = \\frac{22}{3}$`;
 
-    const userPrompt = "Please solve this integral step by step, showing all work clearly and following the LaTeX formatting rules exactly.";
-
     try {
         if (imageData) {
             const response = await openai.chat.completions.create({
@@ -118,7 +114,7 @@ $F(2) = \\frac{16}{3} - 6 + 8 = \\frac{16}{3} - \\frac{18}{3} + \\frac{24}{3} = 
                         content: [
                             {
                                 type: "text",
-                                text: prompt || userPrompt
+                                text: prompt || "Please solve this integral step by step, showing all work clearly and following the LaTeX formatting rules exactly."
                             },
                             {
                                 type: "image_url",
@@ -132,11 +128,12 @@ $F(2) = \\frac{16}{3} - 6 + 8 = \\frac{16}{3} - \\frac{18}{3} + \\frac{24}{3} = 
                 functions: [
                     {
                         name: "formatSolution",
-                        description: "Format the integral solution in a structured way with proper LaTeX rendering for all mathematical expressions",
+                        description: "Format the integral solution in a structured way",
                         parameters: solutionFormat
                     }
                 ],
                 function_call: { name: "formatSolution" },
+                temperature: 0.3,
                 max_tokens: 4096,
             });
 
@@ -156,13 +153,13 @@ $F(2) = \\frac{16}{3} - 6 + 8 = \\frac{16}{3} - \\frac{18}{3} + \\frac{24}{3} = 
                     },
                     {
                         role: "user",
-                        content: prompt || userPrompt
+                        content: prompt
                     }
                 ],
                 functions: [
                     {
                         name: "formatSolution",
-                        description: "Format the integral solution in a structured way with proper LaTeX rendering for all mathematical expressions",
+                        description: "Format the integral solution in a structured way",
                         parameters: solutionFormat
                     }
                 ],
@@ -184,39 +181,50 @@ $F(2) = \\frac{16}{3} - 6 + 8 = \\frac{16}{3} - \\frac{18}{3} + \\frac{24}{3} = 
 }
 
 function formatSolutionOutput(solution: any): string {
-    let output = `Solution\n\n`;
-    output += `To evaluate the definite integral\n\n`;
-    output += `$${solution.definiteIntegral}$\n\n`;
-    output += `we will integrate each term separately and then evaluate the result at the bounds.\n\n`;
-
-    for (const step of solution.steps) {
-        output += `${step.stepNumber}. For $${step.term}$: The integral is\n`;
-        output += `$${step.integral}$\n\n`;
-    }
-
-    output += `Now, combining these results, we have:\n`;
-    output += `$${solution.combinedResult}$\n\n`;
-
-    output += `Next, we will evaluate this expression from 0 to 2:\n`;
-    output += `$${solution.evaluation.expression}$\n\n`;
-
-    output += `Now we calculate:\n\n`;
-    output += `1. At the upper limit $x = 2$:\n`;
-    output += `$${solution.evaluation.upperLimit.calculation}$\n\n`;
+    let output = `${solution.header}\n\n`;
+    output += `To evaluate the ${solution.definiteIntegral}\n\n`;
     
-    if (solution.evaluation.upperLimit.steps) {
-        output += `Calculating each term:\n`;
-        for (const step of solution.evaluation.upperLimit.steps) {
-            output += `$${step}$\n`;
+    // Add steps
+    solution.steps.forEach((step: any) => {
+        output += `${step.stepNumber}. ${step.term}: $${step.integral}$\n\n`;
+    });
+    
+    // Add combined result
+    output += `Now, combining all the results:\n\n`;
+    output += `$${solution.combinedResult}$\n\n`;
+    
+    // Add evaluation if present
+    if (solution.evaluation) {
+        output += `Now we calculate:\n\n`;
+        if (solution.evaluation.expression) {
+            output += `$${solution.evaluation.expression}$\n\n`;
         }
-        output += '\n';
+        
+        // Upper limit calculation
+        if (solution.evaluation.upperLimit) {
+            output += `At $x = ${solution.evaluation.upperLimit.value}$:\n`;
+            output += `$${solution.evaluation.upperLimit.calculation}$\n\n`;
+            
+            if (solution.evaluation.upperLimit.steps) {
+                solution.evaluation.upperLimit.steps.forEach((step: string) => {
+                    output += `$${step}$\n`;
+                });
+                output += '\n';
+            }
+        }
+        
+        // Lower limit calculation
+        if (solution.evaluation.lowerLimit) {
+            output += `At $x = ${solution.evaluation.lowerLimit.value}$:\n`;
+            output += `$${solution.evaluation.lowerLimit.calculation}$\n\n`;
+        }
+        
+        // Final result
+        if (solution.evaluation.finalResult) {
+            output += `The definite integral is:\n`;
+            output += `$${solution.evaluation.finalResult}$`;
+        }
     }
-
-    output += `2. At the lower limit $x = 0$:\n`;
-    output += `$${solution.evaluation.lowerLimit.calculation}$\n\n`;
-
-    output += `The definite integral is:\n`;
-    output += `$${solution.evaluation.finalResult}$`;
-
+    
     return output;
 } 

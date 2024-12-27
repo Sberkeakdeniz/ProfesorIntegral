@@ -64,36 +64,56 @@ export default function MathProblemSolver() {
     };
 
     const solveProblem = async () => {
-        if (!prompt.trim() && !image) return;
+        if (!prompt.trim() && !imagePreview) return;
 
         setLoading(true);
         setError('');
+        setSolution(''); // Clear previous solution
         
         try {
-            const formData = new FormData();
-            if (prompt.trim()) {
-                formData.append('prompt', prompt);
-            }
-            if (image) {
-                formData.append('image', image);
-            }
-            formData.append('steps', 'true');
-
             const response = await fetch('/api/solve-math', {
                 method: 'POST',
-                body: formData,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    prompt: prompt.trim(),
+                    imageData: imagePreview
+                }),
             });
 
-            const data = await response.json();
-            if (response.ok) {
-                setSolution(data.solution);
-            } else {
-                setError(data.error || 'Failed to solve the problem');
-                console.error('Error:', data.error);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to solve the problem');
             }
+
+            const data = await response.json();
+            if (!data.solution) {
+                throw new Error('No solution received');
+            }
+
+            // Ensure LaTeX expressions are properly wrapped in math mode
+            const formattedSolution = data.solution
+                .split('\n')
+                .map((line: string) => {
+                    // Skip lines that are already in math mode
+                    if (line.trim().startsWith('$') && line.trim().endsWith('$')) {
+                        return line;
+                    }
+                    // Convert LaTeX expressions to math mode
+                    return line.replace(/\\[a-zA-Z]+{[^}]*}|\\[a-zA-Z]+\[[^]]*\]{[^}]*}/g, match => {
+                        if (!match.startsWith('$')) {
+                            return `$${match}$`;
+                        }
+                        return match;
+                    });
+                })
+                .join('\n');
+
+            setSolution(formattedSolution);
         } catch (error) {
-            setError('Failed to connect to the server');
-            console.error('Failed to solve problem:', error);
+            console.error('Error solving problem:', error);
+            setError('Please try again with a clearer image or problem description');
         } finally {
             setLoading(false);
         }
@@ -185,7 +205,12 @@ export default function MathProblemSolver() {
                                 <ReactMarkdown
                                     remarkPlugins={[remarkMath]}
                                     rehypePlugins={[rehypeKatex]}
-                                    className="markdown-content"
+                                    components={{
+                                        // Ensure inline math is properly rendered
+                                        p: ({ children }) => <p className="my-2">{children}</p>,
+                                        // Ensure block math is properly rendered
+                                        div: ({ children }) => <div className="my-4">{children}</div>
+                                    }}
                                 >
                                     {solution}
                                 </ReactMarkdown>
