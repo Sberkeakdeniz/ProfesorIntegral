@@ -43,7 +43,7 @@ export const Header = () => {
                   size="sm"
                   className="shadow-sm hover:shadow-md transition-all bg-primary/90 hover:bg-primary"
                 >
-                  Try Calculator
+                  Try Profesor
                 </Button>
                 <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-border">
                   {session.user?.image && (
