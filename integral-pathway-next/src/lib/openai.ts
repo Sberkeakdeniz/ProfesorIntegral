@@ -58,47 +58,42 @@ export async function solveMathProblem(prompt: string, imageData?: string): Prom
 
 Key formatting rules:
 - Use proper LaTeX math mode for ALL mathematical expressions (enclose in $ signs)
-- Format integrals using \\int with proper limits (e.g., $\\int_0^2$)
+- Format integrals using \\int with proper spacing (e.g., $\\int x^2\\,dx$)
 - Format fractions using \\frac{numerator}{denominator}
+- Use proper LaTeX commands for all mathematical symbols:
+  * Integration by parts: $\\int u\\,dv = uv - \\int v\\,du$
+  * Exponentials: $e^x$ (not ex)
+  * Products: $2x$ or $2 \\cdot x$ (with proper spacing)
+  * Powers: $x^2$ (not x2)
+  * Differentials: $\\,dx$ (with proper spacing)
 - Show each step clearly with numbers
 - Keep expressions clean and aligned
-- Use proper spacing with \\, before dx
 - Break calculations into clear steps
 - Show all work in a logical sequence
-- For image inputs, ensure all mathematical expressions are properly rendered in LaTeX
 
 Example of proper LaTeX formatting:
 
-Solution
+$x^2e^x$: Using integration by parts, let:
+$u = x^2$ and $dv = e^x\\,dx$
 
-To evaluate the definite integral
+Then:
+$du = 2x\\,dx$ and $v = e^x$
 
-$\\int_0^2 (2x^2 - 3x + 4)\\,dx$,
+Using the formula $\\int u\\,dv = uv - \\int v\\,du$:
 
-we will integrate each term separately and then evaluate the result at the bounds.
+$\\int x^2e^x\\,dx = x^2e^x - \\int e^x(2x)\\,dx$
 
-First, we find the indefinite integral:
+Again using integration by parts for $\\int 2xe^x\\,dx$:
+Let $u = 2x$ and $dv = e^x\\,dx$
 
-1. For $(2x^2)$: The integral is $\\frac{2}{3}x^3$
-2. For $(-3x)$: The integral is $-\\frac{3}{2}x^2$
-3. For $(4)$: The integral is $4x$
-
-Thus, the indefinite integral is:
-$\\frac{2}{3}x^3 - \\frac{3}{2}x^2 + 4x + C$
-
-Now, we will evaluate this expression from 0 to 2:
-$F(x) = \\frac{2}{3}x^3 - \\frac{3}{2}x^2 + 4x$
-
-At $x = 2$:
-$F(2) = \\frac{2}{3}(2)^3 - \\frac{3}{2}(2)^2 + 4(2)$
-
-Calculating each term:
-$\\frac{2}{3}(2)^3 = \\frac{2}{3} \\cdot 8 = \\frac{16}{3}$
-$-\\frac{3}{2}(2)^2 = -\\frac{3}{2} \\cdot 4 = -6$
-$4(2) = 8$
+Then:
+$du = 2\\,dx$ and $v = e^x$
 
 Therefore:
-$F(2) = \\frac{16}{3} - 6 + 8 = \\frac{16}{3} - \\frac{18}{3} + \\frac{24}{3} = \\frac{22}{3}$`;
+$\\int 2xe^x\\,dx = 2xe^x - \\int 2e^x\\,dx = 2xe^x - 2e^x$
+
+Final result:
+$\\int x^2e^x\\,dx = x^2e^x - (2xe^x - 2e^x) = x^2e^x - 2xe^x + 2e^x + C$`;
 
     try {
         if (imageData) {
@@ -182,20 +177,27 @@ $F(2) = \\frac{16}{3} - 6 + 8 = \\frac{16}{3} - \\frac{18}{3} + \\frac{24}{3} = 
 
 function formatSolutionOutput(solution: any): string {
     let output = `${solution.header}\n\n`;
-    output += `To evaluate the ${solution.definiteIntegral}\n\n`;
     
-    // Add steps
+    // Add the definite integral if present
+    if (solution.definiteIntegral) {
+        output += `${solution.definiteIntegral}\n\n`;
+    }
+    
+    // Add steps with proper LaTeX formatting
     solution.steps.forEach((step: any) => {
-        output += `${step.stepNumber}. ${step.term}: $${step.integral}$\n\n`;
+        output += `${step.stepNumber}. ${step.term}\n`;
+        if (step.integral) {
+            output += `$${step.integral}$\n\n`;
+        }
     });
     
-    // Add combined result
-    output += `Now, combining all the results:\n\n`;
-    output += `$${solution.combinedResult}$\n\n`;
+    // Add combined result with proper LaTeX formatting
+    if (solution.combinedResult) {
+        output += `Therefore:\n$${solution.combinedResult}$\n\n`;
+    }
     
     // Add evaluation if present
     if (solution.evaluation) {
-        output += `Now we calculate:\n\n`;
         if (solution.evaluation.expression) {
             output += `$${solution.evaluation.expression}$\n\n`;
         }
@@ -221,8 +223,7 @@ function formatSolutionOutput(solution: any): string {
         
         // Final result
         if (solution.evaluation.finalResult) {
-            output += `The definite integral is:\n`;
-            output += `$${solution.evaluation.finalResult}$`;
+            output += `Final result:\n$${solution.evaluation.finalResult}$`;
         }
     }
     

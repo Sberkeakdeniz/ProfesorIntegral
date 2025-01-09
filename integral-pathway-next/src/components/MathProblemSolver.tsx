@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -13,19 +13,93 @@ import rehypeKatex from 'rehype-katex';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
+import Link from 'next/link';
+import { useSession } from "next-auth/react";
 
 export default function MathProblemSolver() {
+    const { data: session } = useSession();
     const [prompt, setPrompt] = useState('');
     const [solution, setSolution] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [image, setImage] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [hasUsedTrial, setHasUsedTrial] = useState(false);
+    const [subscription, setSubscription] = useState<any>(null);
+    const [solutionsRemaining, setSolutionsRemaining] = useState<number>(3);
+    const [nextResetTime, setNextResetTime] = useState<number | null>(null);
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
+    // Get today's key for localStorage with user-specific prefix
+    const getTodayKey = useCallback(() => {
+        if (!session?.user?.email) return '';
+        const today = new Date();
+        return `solutions_${session.user.email}_${today.getFullYear()}_${today.getMonth() + 1}_${today.getDate()}`;
+    }, [session?.user?.email]);
+
+    // Get tomorrow's reset time
+    const getTomorrowResetTime = () => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        return tomorrow.getTime();
+    };
+
+    // Fetch subscription status when session changes
+    useEffect(() => {
+        const fetchSubscription = async () => {
+            if (!session?.user?.email) return;
+            try {
+                const response = await fetch('/api/subscriptions');
+                const data = await response.json();
+                if (data.items?.[0]) {
+                    setSubscription(data.items[0]);
+                }
+            } catch (error) {
+                console.error('Error fetching subscription:', error);
+            }
+        };
+
+        fetchSubscription();
+    }, [session?.user?.email]);
+
+    const isSubscribed = useMemo(() => {
+        if (!subscription) return false;
+        
+        // Check if subscription is active or canceled but not yet expired
+        const endDate = new Date(subscription.current_period_end);
+        const now = new Date();
+        
+        return (subscription.status === 'active' || subscription.status === 'canceled') && endDate > now;
+    }, [subscription]);
+
+    const isPlusPlan = useMemo(() => {
+        if (!subscription) return false;
+        
+        const endDate = new Date(subscription.current_period_end);
+        const now = new Date();
+        
+        return (subscription.status === 'active' || subscription.status === 'canceled') && 
+               endDate > now && 
+               subscription.product?.name?.toLowerCase().includes('plus');
+    }, [subscription]);
+
+    // Check solutions count on component mount and subscription/session change
+    useEffect(() => {
+        if (isPlusPlan && session?.user?.email) {
+            const todayKey = getTodayKey();
+            const usedToday = parseInt(localStorage.getItem(todayKey) || '0');
+            setSolutionsRemaining(Math.max(0, 3 - usedToday));
+        }
+    }, [isPlusPlan, session?.user?.email, getTodayKey]);
+
     const onDrop = useCallback((acceptedFiles: File[]) => {
+        if (!isSubscribed) {
+            window.location.href = '/pricing';
+            return;
+        }
         handleImageSelection(acceptedFiles[0]);
-    }, []);
+    }, [isSubscribed]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -33,10 +107,16 @@ export default function MathProblemSolver() {
             'image/*': ['.png', '.jpg', '.jpeg', '.gif']
         },
         maxFiles: 1,
-        multiple: false
+        multiple: false,
+        disabled: !isSubscribed
     });
 
     const handleImageSelection = (file: File) => {
+        if (!isSubscribed) {
+            window.location.href = '/pricing';
+            return;
+        }
+
         if (file && file.type.startsWith('image/')) {
             setImage(file);
             const reader = new FileReader();
@@ -48,6 +128,12 @@ export default function MathProblemSolver() {
     };
 
     const handlePaste = (e: React.ClipboardEvent) => {
+        if (!isSubscribed) {
+            e.preventDefault();
+            window.location.href = '/pricing';
+            return;
+        }
+
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
@@ -66,7 +152,30 @@ export default function MathProblemSolver() {
     };
 
     const solveProblem = async () => {
+        if (!session) {
+            window.location.href = '/auth/signup?message=Please sign up to use our calculator';
+            return;
+        }
+
         if (!prompt.trim() && !imagePreview) return;
+        if (hasUsedTrial) {
+            window.location.href = '/pricing';
+            return;
+        }
+
+        // Check solution limits for Plus plan
+        if (isPlusPlan) {
+            const todayKey = getTodayKey();
+            if (!todayKey) {
+                setError('Please sign in to continue');
+                return;
+            }
+            const usedToday = parseInt(localStorage.getItem(todayKey) || '0');
+            if (usedToday >= 3) {
+                setError('You have reached your daily limit. Please wait for the timer to reset or upgrade to Pro plan.');
+                return;
+            }
+        }
 
         setLoading(true);
         setError('');
@@ -94,85 +203,52 @@ export default function MathProblemSolver() {
                 throw new Error('No solution received');
             }
 
-            const formattedSolution = data.solution
-                .split('\n')
-                .map((line: string) => {
-                    if (line.trim().startsWith('$$') && line.trim().endsWith('$$')) {
-                        return line;
+            // Update solutions count for Plus plan
+            if (isPlusPlan) {
+                const todayKey = getTodayKey();
+                if (todayKey) {
+                    const currentCount = parseInt(localStorage.getItem(todayKey) || '0');
+                    const newCount = currentCount + 1;
+                    localStorage.setItem(todayKey, newCount.toString());
+                    setSolutionsRemaining(Math.max(0, 3 - newCount));
+
+                    // Set reset time if first solution of the day
+                    if (newCount === 1) {
+                        const resetTime = getTomorrowResetTime();
+                        setNextResetTime(resetTime);
                     }
-                    if (line.trim().startsWith('$') && line.trim().endsWith('$')) {
-                        return line;
-                    }
+                }
+            } else {
+                setHasUsedTrial(true);
+            }
 
-                    if (line.includes('\\begin{equation}') || line.includes('\\end{equation}') ||
-                        line.includes('\\[') || line.includes('\\]')) {
-                        return line;
-                    }
-
-                    const patterns = [
-                        { regex: /\\frac\{[^}]*\}\{[^}]*\}/g, wrap: true },
-                        { regex: /\\int[^a-zA-Z]/g, wrap: true },
-                        { regex: /\\sum[^a-zA-Z]/g, wrap: true },
-                        { regex: /\\prod[^a-zA-Z]/g, wrap: true },
-                        { regex: /\\lim[^a-zA-Z]/g, wrap: true },
-                        { regex: /\\sqrt\{[^}]*\}/g, wrap: true },
-                        { regex: /[_^]\{[^}]*\}/g, wrap: true },
-                        { regex: /\\[a-zA-Z]+/g, wrap: true },
-                    ];
-
-                    let newLine = line;
-                    let matches: { index: number, length: number, needsWrapping: boolean }[] = [];
-
-                    patterns.forEach(pattern => {
-                        let match;
-                        while ((match = pattern.regex.exec(newLine)) !== null) {
-                            if (pattern.wrap) {
-                                matches.push({
-                                    index: match.index,
-                                    length: match[0].length,
-                                    needsWrapping: true
-                                });
-                            }
-                        }
-                    });
-
-                    matches.sort((a, b) => b.index - a.index);
-
-                    matches.forEach(match => {
-                        if (match.needsWrapping) {
-                            const before = newLine.slice(0, match.index);
-                            const matchText = newLine.slice(match.index, match.index + match.length);
-                            const after = newLine.slice(match.index + match.length);
-
-                            if (!before.endsWith('$') && !after.startsWith('$')) {
-                                newLine = `${before}$${matchText}$${after}`;
-                            }
-                        }
-                    });
-
-                    if (matches.length > 0 && (
-                        line.includes('\\frac') || 
-                        line.includes('\\int') || 
-                        line.includes('\\sum') ||
-                        line.includes('\\prod')
-                    )) {
-                        if (!newLine.startsWith('$$')) {
-                            newLine = `$$${newLine.replace(/\$/g, '')}$$`;
-                        }
-                    }
-
-                    return newLine;
-                })
-                .join('\n');
-
-            setSolution(formattedSolution);
+            setSolution(data.solution);
         } catch (error) {
             console.error('Error solving problem:', error);
-            setError('Please try again with a clearer image or problem description');
+            setError(error instanceof Error ? error.message : 'Please try again with a clearer image or problem description');
         } finally {
             setLoading(false);
         }
     };
+
+    // Format time remaining for display
+    const formatTimeRemaining = () => {
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        
+        const diff = tomorrow.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        return `${hours}h ${minutes}m`;
+    };
+
+    // Disable input and show sign-in message for non-authenticated users
+    const isDisabled = loading || 
+                      (!prompt.trim() && !image) || 
+                      hasUsedTrial || 
+                      (isPlusPlan && solutionsRemaining <= 0);
 
     return (
         <>
@@ -233,9 +309,9 @@ export default function MathProblemSolver() {
                                             isDragActive 
                                                 ? 'border-primary bg-primary/5 scale-[1.02] shadow-lg' 
                                                 : 'border-muted hover:border-primary/50 hover:bg-accent/50'
-                                        }`}
+                                        } ${!isSubscribed ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
-                                        <input {...getInputProps()} />
+                                        <input {...getInputProps()} disabled={!isSubscribed} />
                                         <AnimatePresence mode="wait">
                                             {imagePreview ? (
                                                 <motion.div 
@@ -267,12 +343,25 @@ export default function MathProblemSolver() {
                                                     className="text-center p-4"
                                                 >
                                                     <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                                                    <p className="text-base text-muted-foreground font-medium">
-                                                        Drag & drop an image here, or click to select
-                                                    </p>
-                                                    <p className="text-sm text-muted-foreground/80 mt-2">
-                                                        You can also paste an image directly
-                                                    </p>
+                                                    {isSubscribed ? (
+                                                        <>
+                                                            <p className="text-base text-muted-foreground font-medium">
+                                                                Drag & drop an image here, or click to select
+                                                            </p>
+                                                            <p className="text-sm text-muted-foreground/80 mt-2">
+                                                                You can also paste an image directly
+                                                            </p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <p className="text-base text-muted-foreground font-medium">
+                                                                Image upload is a premium feature
+                                                            </p>
+                                                            <Link href="/pricing" className="text-sm text-primary hover:underline mt-2 inline-block">
+                                                                Subscribe to unlock image upload
+                                                            </Link>
+                                                        </>
+                                                    )}
                                                 </motion.div>
                                             )}
                                         </AnimatePresence>
@@ -280,7 +369,7 @@ export default function MathProblemSolver() {
 
                                     <Button 
                                         onClick={solveProblem}
-                                        disabled={loading || (!prompt.trim() && !image)}
+                                        disabled={isDisabled}
                                         className="w-full relative overflow-hidden group shadow-lg hover:shadow-xl transition-all duration-300"
                                         size="lg"
                                     >
@@ -311,6 +400,14 @@ export default function MathProblemSolver() {
                                                     }}
                                                 />
                                             </div>
+                                        ) : !session ? (
+                                            <Link href="/auth/signup?message=Please sign up to use our calculator" className="w-full flex items-center justify-center">
+                                                <span className="text-base font-medium">Sign up to Start Calculating</span>
+                                            </Link>
+                                        ) : hasUsedTrial ? (
+                                            <Link href="/pricing" className="w-full flex items-center justify-center">
+                                                <span className="text-base font-medium">Subscribe to Continue</span>
+                                            </Link>
                                         ) : (
                                             <>
                                                 <span className="text-base font-medium">Solve Problem</span>
@@ -323,6 +420,70 @@ export default function MathProblemSolver() {
                                             </>
                                         )}
                                     </Button>
+
+                                    {isPlusPlan && (
+                                        <div className={`mt-4 p-4 rounded-lg text-sm ${solutionsRemaining <= 0 ? 'bg-destructive/10 border border-destructive/20 text-destructive' : 'bg-muted/50'}`}>
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="font-medium">Solutions remaining today:</span>
+                                                    <span className="ml-2 font-bold">{solutionsRemaining}/3</span>
+                                                </div>
+                                                {nextResetTime && (
+                                                    <div className="text-muted-foreground">
+                                                        Resets in: {formatTimeRemaining()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {solutionsRemaining <= 0 && (
+                                                <div className="mt-2 space-y-2">
+                                                    <p className="text-destructive font-medium">
+                                                        You've reached your daily limit. Please wait for the timer to reset or upgrade to our Pro plan for unlimited solutions.
+                                                    </p>
+                                                    <Button 
+                                                        variant="default"
+                                                        className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500"
+                                                        onClick={async () => {
+                                                            try {
+                                                                const response = await fetch(`/api/subscriptions/${subscription?.id}/update`, {
+                                                                    method: 'PATCH',
+                                                                    headers: {
+                                                                        'Content-Type': 'application/json',
+                                                                    },
+                                                                    body: JSON.stringify({
+                                                                        subscriptionUpdate: {
+                                                                            product_price_id: '282df76e-8872-4c7f-89c8-7dc3ed0f4fc7' // Your Pro plan price ID
+                                                                        }
+                                                                    }),
+                                                                });
+                                                                
+                                                                if (!response.ok) {
+                                                                    const errorData = await response.json();
+                                                                    throw new Error(errorData.message || 'Failed to upgrade subscription');
+                                                                }
+                                                                
+                                                                const data = await response.json();
+                                                                // Refresh the page to show updated subscription
+                                                                window.location.reload();
+                                                            } catch (error) {
+                                                                console.error('Error upgrading subscription:', error);
+                                                                setError(error instanceof Error ? error.message : 'Failed to upgrade subscription. Please try again.');
+                                                                
+                                                                // If the subscription is canceled, redirect to pricing page
+                                                                if (error instanceof Error && error.message.includes('already been canceled')) {
+                                                                    setTimeout(() => {
+                                                                        window.location.href = '/pricing';
+                                                                    }, 3000); // Redirect after 3 seconds
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Sparkles className="w-4 h-4 mr-2" />
+                                                        Upgrade to Pro
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
 
@@ -341,10 +502,22 @@ export default function MathProblemSolver() {
                                                     initial={{ opacity: 0, y: 10 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     exit={{ opacity: 0, y: -10 }}
-                                                    className="text-destructive flex items-center gap-3 p-4 bg-destructive/5 rounded-lg border border-destructive/20"
+                                                    className="text-destructive flex flex-col gap-3 p-4 bg-destructive/5 rounded-lg border border-destructive/20"
                                                 >
-                                                    <X className="h-5 w-5" />
-                                                    <p className="text-base">{error}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <X className="h-5 w-5" />
+                                                        <p className="text-base">{error}</p>
+                                                    </div>
+                                                    {error.includes('subscribe') && (
+                                                        <Link href="/pricing" className="w-full">
+                                                            <Button 
+                                                                variant="default"
+                                                                className="w-full"
+                                                            >
+                                                                View Subscription Plans
+                                                            </Button>
+                                                        </Link>
+                                                    )}
                                                 </motion.div>
                                             ) : solution ? (
                                                 <motion.div

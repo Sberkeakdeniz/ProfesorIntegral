@@ -1,11 +1,15 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Supabase connection details
-const supabaseUrl = 'https://ssmrgterkydpnakncgsb.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzbXJndGVya3lkcG5ha25jZ3NiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUyMzc5NTgsImV4cCI6MjA1MDgxMzk1OH0.JFhURA5s9biTph2ZsLZVrljObpfkVu0CDMKtPI7YT8s';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 async function testSupabaseConnection() {
   try {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Missing Supabase environment variables');
+    }
+
     console.log('Creating Supabase client...');
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export const Hero = () => {
   return (
@@ -19,13 +20,17 @@ export const Hero = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="text-lg">
-              Start Calculating
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-            <Button size="lg" variant="outline" className="text-lg">
-              View Examples
-            </Button>
+            <Link href="/solve">
+              <Button size="lg" className="text-lg">
+                Start Calculating
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+            <Link href="/examples">
+              <Button size="lg" variant="outline" className="text-lg">
+                View Examples
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
