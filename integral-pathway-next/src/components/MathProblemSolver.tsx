@@ -6,15 +6,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { ProfessorIcon } from './icons/ProfessorIcon';
 import { Loader2, Upload, X, Sparkles } from 'lucide-react';
-import 'katex/dist/katex.min.css';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
 import Link from 'next/link';
 import { useSession } from "next-auth/react";
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 export default function MathProblemSolver() {
     const { data: session } = useSession();
@@ -439,47 +437,7 @@ export default function MathProblemSolver() {
                                                     <p className="text-destructive font-medium">
                                                         You've reached your daily limit. Please wait for the timer to reset or upgrade to our Pro plan for unlimited solutions.
                                                     </p>
-                                                    <Button 
-                                                        variant="default"
-                                                        className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500"
-                                                        onClick={async () => {
-                                                            try {
-                                                                const response = await fetch(`/api/subscriptions/${subscription?.id}/update`, {
-                                                                    method: 'PATCH',
-                                                                    headers: {
-                                                                        'Content-Type': 'application/json',
-                                                                    },
-                                                                    body: JSON.stringify({
-                                                                        subscriptionUpdate: {
-                                                                            product_price_id: '282df76e-8872-4c7f-89c8-7dc3ed0f4fc7' // Your Pro plan price ID
-                                                                        }
-                                                                    }),
-                                                                });
-                                                                
-                                                                if (!response.ok) {
-                                                                    const errorData = await response.json();
-                                                                    throw new Error(errorData.message || 'Failed to upgrade subscription');
-                                                                }
-                                                                
-                                                                const data = await response.json();
-                                                                // Refresh the page to show updated subscription
-                                                                window.location.reload();
-                                                            } catch (error) {
-                                                                console.error('Error upgrading subscription:', error);
-                                                                setError(error instanceof Error ? error.message : 'Failed to upgrade subscription. Please try again.');
-                                                                
-                                                                // If the subscription is canceled, redirect to pricing page
-                                                                if (error instanceof Error && error.message.includes('already been canceled')) {
-                                                                    setTimeout(() => {
-                                                                        window.location.href = '/pricing';
-                                                                    }, 3000); // Redirect after 3 seconds
-                                                                }
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Sparkles className="w-4 h-4 mr-2" />
-                                                        Upgrade to Pro
-                                                    </Button>
+                                                    <p>Upgrade to Pro Feature is coming soon. Until that you can cancel and renew your subscription as Pro !</p>
                                                 </div>
                                             )}
                                         </div>
@@ -525,18 +483,14 @@ export default function MathProblemSolver() {
                                                     animate={{ opacity: 1, y: 0 }}
                                                     exit={{ opacity: 0, y: -10 }}
                                                     className="prose prose-sm dark:prose-invert max-w-none"
-                                                >
-                                                    <ReactMarkdown
-                                                        remarkPlugins={[remarkMath]}
-                                                        rehypePlugins={[rehypeKatex]}
-                                                        components={{
-                                                            p: ({ children }) => <p className="my-3 text-base">{children}</p>,
-                                                            div: ({ children }) => <div className="my-4">{children}</div>
-                                                        }}
-                                                    >
-                                                        {solution}
-                                                    </ReactMarkdown>
-                                                </motion.div>
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: katex.renderToString(solution, {
+                                                            displayMode: true,
+                                                            throwOnError: false,
+                                                            trust: true
+                                                        })
+                                                    }}
+                                                />
                                             ) : (
                                                 <motion.div
                                                     initial={{ opacity: 0 }}

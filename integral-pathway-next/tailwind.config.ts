@@ -18,8 +18,8 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        cormorant: ['var(--font-cormorant)'],
         sans: ['var(--font-inter)'],
+        serif: ['var(--font-cormorant)'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -117,4 +117,4 @@ const config: Config = {
   ],
 }
 
-export default config
+export default config;

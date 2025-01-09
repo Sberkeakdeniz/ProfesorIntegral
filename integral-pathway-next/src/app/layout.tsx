@@ -6,10 +6,9 @@ import { cn } from "@/lib/utils";
 import { Providers } from "@/components/providers";
 
 const inter = Inter({ subsets: ["latin"] });
-const cormorant = Cormorant({ 
-  subsets: ["latin"],
-  variable: '--font-cormorant',
-  weight: ['400', '500', '600', '700'],
+const cormorant = Cormorant({
+  subsets: ['latin'],
+  display: 'swap',
 });
 
 export const metadata = {
@@ -24,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} ${cormorant.variable}`}>
+      <body className={`${inter.className} ${cormorant.className}`}>
         <Providers>
           <Header />
           <main className="pt-20">

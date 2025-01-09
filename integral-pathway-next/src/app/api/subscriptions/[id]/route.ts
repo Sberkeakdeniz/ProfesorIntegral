@@ -3,42 +3,37 @@ import { Polar } from "@polar-sh/sdk";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // Get the current user's session
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+// Define the route handler type
+type RouteHandler = (
+    req: NextRequest,
+    context: { params: Promise<{ id: string }> }
+) => Promise<Response>;
+
+// Implement the route handler
+export const PATCH: RouteHandler = async (req, context) => {
+    try {
+        // Get the current user's session
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.email) {
+            return new Response('Unauthorized', { status: 401 });
+        }
+
+        const params = await context.params;
+        const polar = new Polar({
+            accessToken: process.env.POLAR_ACCESS_TOKEN ?? "",
+        });
+
+        const result = await polar.subscriptions.update({
+            id: params.id,
+            subscriptionUpdate: {},
+        });
+
+        return Response.json({ success: true, result });
+    } catch (error: any) {
+        console.error('Error updating subscription:', error);
+        return Response.json(
+            { error: 'Failed to update subscription', details: error.message },
+            { status: 500 }
+        );
     }
-
-    const polar = new Polar({
-      accessToken: process.env.POLAR_ACCESS_TOKEN ?? "",
-    });
-
-    async function run() {
-      const result = await polar.subscriptions.update({
-        id: params.id,
-        subscriptionUpdate: {},
-      });
-
-      // Handle the result
-      console.log(result);
-      return result;
-    }
-
-    const result = await run();
-    return NextResponse.json({ success: true, result });
-  } catch (error: any) {
-    console.error('Error updating subscription:', error);
-    return NextResponse.json(
-      { error: 'Failed to update subscription', details: error.message },
-      { status: 500 }
-    );
-  }
 } 
