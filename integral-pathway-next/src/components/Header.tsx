@@ -31,11 +31,11 @@ export const Header = () => {
                   <ProfessorIcon />
                 </div>
                 <div className="flex flex-col -ml-1">
-                  <span className="text-2xl font-semibold tracking-wide font-cormorant text-foreground">
+                  <span className="text-2xl font-heading font-semibold tracking-tight text-foreground">
                     Profesor Integral
                   </span>
-                  <span className="text-xs tracking-wider uppercase text-muted-foreground -mt-1">
-                    Integral Solver
+                  <span className="text-xs tracking-widest font-medium text-muted-foreground -mt-1">
+                    INTEGRAL SOLVER
                   </span>
                 </div>
               </div>
@@ -75,7 +75,7 @@ export const Header = () => {
                 {!isSolvePage && (
                   <Link href="/solve">
                     <Button 
-                      variant="default"
+                      variant="default" 
                       className="font-medium text-base bg-primary hover:bg-primary/90"
                     >
                       Calculate

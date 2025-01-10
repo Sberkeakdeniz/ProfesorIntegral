@@ -1,15 +1,8 @@
-import { Inter, Cormorant } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { cn } from "@/lib/utils";
 import { Providers } from "@/components/providers";
-
-const inter = Inter({ subsets: ["latin"] });
-const cormorant = Cormorant({
-  subsets: ['latin'],
-  display: 'swap',
-});
 
 export const metadata = {
   title: "Profesor Integral - Your Calculus Companion",
@@ -23,12 +16,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} ${cormorant.className}`}>
+      <body className="font-sans antialiased">
         <Providers>
           <Header />
-          <main className="pt-20">
-            {children}
-          </main>
+          <main className="min-h-screen">{children}</main>
           <Footer />
         </Providers>
       </body>
